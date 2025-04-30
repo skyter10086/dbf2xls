@@ -43,7 +43,7 @@ def main():
         agg_dict={"实发补贴": ["count", "sum"]},
         alias=["单位编码", "实发人数", "企业补贴发放额"],
     )
-    dwbm = read_dwbm(r"E:\dwbm.xlsx")
+    dwbm = read_dwbm(r"E:\企业补贴\银行报盘\全民dwbm.xlsx")
     data = build_data(dwbm, dbf, "单位编码", "left").values.tolist()
     wb = load_workbook(
         filename=r"E:\企业补贴\银行报盘\离退休职工企业补贴汇总模板（老人）.xlsx"
