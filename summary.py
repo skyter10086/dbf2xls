@@ -45,9 +45,13 @@ def main():
     )
     dwbm = read_dwbm(r"E:\dwbm.xlsx")
     data = build_data(dwbm, dbf, "单位编码", "left").values.tolist()
-    wb = load_workbook(filename=r"E:\老人补贴202505.xlsx")
-    ws = wb["单位汇总202505"]
-    ws_1 = wb["银行表202505"]
+    wb = load_workbook(
+        filename=r"E:\企业补贴\银行报盘\离退休职工企业补贴汇总模板（老人）.xlsx"
+    )
+    ws = wb["单位汇总"]
+    ws["A1"] = "2025年5月全民离退休人员企业补贴发放汇总表(单位)"
+    ws_1 = wb["银行汇总"]
+    ws_1["A1"] = "2025年5月全民离退休人员企业补贴发放汇总表(银行)"
     dbf_1 = read_dbf(
         filename=r"E:\企业补贴\数据\企业补贴202505\bt_ltx.dbf",
         column_names=["发放银行", "X_银行帐号", "补发_其它", "其它扣款", "实发补贴"],
@@ -63,7 +67,7 @@ def main():
     bank_data = dbf_1.values.tolist()
     fill(ws_1, "G4", bank_data)
     fill(ws, "B4", data)
-    wb.save(r"E:\老人补贴202505_new.xlsx")
+    wb.save(r"E:\企业补贴\银行报盘\2025年\5月\老人企业补贴汇总202505.xlsx")
 
     dbf2 = read_dbf(
         filename=r"E:\企业补贴\数据\集体工企业补贴202505\bt_ltx.dbf",
@@ -77,11 +81,13 @@ def main():
         alias=["单位编码", "实发人数", "提高待遇", "实发金额"],
     )
     wb2 = load_workbook(
-        filename=r"E:\企业补贴\银行报盘\2025年\5月\退休集体工企业补贴发放总信息202505.xlsx"
+        filename=r"E:\企业补贴\银行报盘\退休集体工企业补贴汇总模板.xlsx"
     )
-    ws2 = wb2["单位汇总202505工会（企业补贴）"]
-    ws_2 = wb2["单位汇总202505工会（企业补贴） 含遗孀"]
-    dwbm2 = read_dwbm(filename=r"E:\dwbm2.xlsx")
+    ws2 = wb2["企业补贴（财务拨款）"]
+    ws2["A1"] = "2025年5月退休集体工企业补贴发放汇总表"
+    ws_2 = wb2["企业补贴（含遗孀）"]
+    ws_2["A1"] = "2025年5月退休集体工企业补贴发放汇总表(含遗孀)"
+    dwbm2 = read_dwbm(filename=r"E:\企业补贴\银行报盘\非全民dwbm.xlsx")
     data2 = build_data(dwbm=dwbm2, dbf=dbf2, on_field="单位编码", with_how="left")
     data2["企业补贴"] = data2["实发金额"] - data2["提高待遇"]
     data2f = data2.filter(
@@ -94,11 +100,13 @@ def main():
     gc = data2f_[data2f_["性质"] == "工程"]
     fqm_data = fqm.values.tolist()
     gc_data = gc.values.tolist()
-    ws3 = wb2["单位征集(企业补贴)202505"]
+    ws3 = wb2["企业补贴（单位征集）"]
+    ws3["A1"] = "2025年5月退休集体工企业补贴发放汇总表(工程)"
     fill(ws2, "B4", fqm_data)
     fill(ws_2, "B4", fqm_data)
     fill(ws3, "J4", gc_data)
-    ws_2 = wb2["银行汇总202505(企业补贴) "]
+    ws_2 = wb2["企业补贴（银行汇总）"]
+    ws_2["A1"] = "2025年5月退休集体工企业补贴发放汇总表(银行)"
     dbf_2 = read_dbf(
         filename=r"E:\企业补贴\数据\集体工企业补贴202505\bt_ltx.dbf",
         column_names=["发放银行", "X_银行帐号", "补发_其它", "实发补贴"],
@@ -112,7 +120,7 @@ def main():
     )
     bank_data2 = dbf_2.values.tolist()
     fill(ws_2, "H4", bank_data2)
-    wb2.save(r"E:\退休集体工企业补贴202505.xlsx")
+    wb2.save(r"E:\企业补贴\银行报盘\2025年\5月\退休集体工企业补贴汇总202505.xlsx")
 
 
 if __name__ == "__main__":
