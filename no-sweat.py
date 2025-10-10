@@ -302,6 +302,9 @@ def conv_bocny(df):
     return add_index(result).values.tolist()
 
 def export_data(data,template,output):
+    if data is None:
+        return
+    
     app = xw.App(visible=False, add_book=False)
     wb = app.books.open(template["temp_path"])
     sht = wb.sheets[template["sheet"]]    
@@ -359,7 +362,7 @@ def construct_data(dataframe: pd.DataFrame,type: str):
             df["应发金额"] = df["企业补贴"] + df["提高待遇"] 
             df["实发金额"] = df["应发金额"] - df["费用扣减"]
             dwbm = get_dwbm(r"D:\企业补贴\银行报盘\全民dwbm.xlsx")
-            print(df)
+            #print(df)
             result["单位汇总"] = merge_dwbm(dwbm,
                        df.filter(
                             items=[
@@ -394,7 +397,67 @@ def construct_data(dataframe: pd.DataFrame,type: str):
             return result
 
 
-        case "集体工":pass
+        case "集体工":
+            df = group_by(dataframe,"dwbm",
+            {
+                "x_银行帐号": "count",
+                "补贴更正": "sum",
+                "误餐补贴": "sum",
+                "补发补贴": "sum",
+                "补发_其它": "sum",
+                "其它扣款": "sum",
+                "扣款_补贴": "sum"
+            })
+            df.rename(columns={"dwbm":"单位编码","x_银行帐号":"实发人数","补发_其它":"提高待遇"},inplace=True)
+            #print(df)
+            df["企业补贴"] = df["补贴更正"] + df["误餐补贴"] + df["补发补贴"]
+            df["费用扣减"] = df["其它扣款"] + df["扣款_补贴"]
+            df["应发金额"] = df["企业补贴"] + df["提高待遇"] 
+            df["实发金额"] = df["应发金额"] - df["费用扣减"]
+            dwbm = get_dwbm(r"D:\企业补贴\银行报盘\非全民dwbm.xlsx")
+            #print(df)
+            result["企业补贴（财务拨款）"] = merge_dwbm(dwbm,
+                        df.filter(
+                            items=[
+                                "单位编码", "实发人数", "企业补贴", "提高待遇", "费用扣减","应发金额", "实发金额","性质"]), 
+                        "单位编码").query("性质 != '工程'").filter(
+                            items=[
+                                "单位名称", "实发人数", "企业补贴", "提高待遇", "费用扣减","应发金额", "实发金额","性质"]).values.tolist()
+            result["企业补贴（单位征集）"] = merge_dwbm(dwbm,
+                        df.filter(
+                            items=[
+                                "单位编码", "实发人数", "企业补贴", "提高待遇", "费用扣减","应发金额", "实发金额","性质"]), 
+                        "单位编码").query("性质 == '工程' ").filter(
+                            items=[
+                                "单位名称", "实发人数", "企业补贴", "提高待遇", "费用扣减","应发金额", "实发金额","性质"]).values.tolist()
+            result["企业补贴（含遗孀）"] = result["企业补贴（财务拨款）"]
+            df = group_by(dataframe,"发放银行",
+            {
+                "x_银行帐号": "count",
+                "补贴更正": "sum",
+                "误餐补贴": "sum",
+                "补发补贴": "sum",
+                "补发_其它": "sum",
+                "其它扣款": "sum",
+                "扣款_补贴": "sum",
+            })
+            df.rename(
+                columns={
+                    "补贴更正":"补贴标准",
+                    "其它扣款":"代扣大额",
+                    "扣款_补贴":"补贴扣款",
+                    "补发_其它":"提高待遇",
+                    "x_银行帐号":"实发人数"
+            },inplace=True)
+            #print(df)
+            df["企业补贴"] = df["补贴标准"] + df["误餐补贴"] + df["补发补贴"]
+            df["费用扣减"] = df["代扣大额"] + df["补贴扣款"]
+            df["应发金额"] = df["企业补贴"] + df["提高待遇"]
+            df["实发金额"] = df["应发金额"] - df["费用扣减"]
+            result["企业补贴（银行汇总）"] = df.filter(
+                items=["发放银行", "实发人数", "企业补贴", "提高待遇", "费用扣减","应发金额", "实发金额"]).values.tolist()
+            
+            return result
 
         case "中人":pass
         case _: pass
@@ -566,20 +629,26 @@ if __name__ == '__main__':
     df_jtg = read_dbf(source_path(base=source_base,term=current_term)["集体工"] / "bt_ltx.dbf")
     
     #print(df_lr.query("re == 0 and 死亡登记=''" ).copy())
-    #export_data(df_lr,bank_templates["工行"],dest_path(dest_base,current_term)["工行"]/f"{"老人企业补贴(工行报盘)-"+current_term+".xlsx"}")
-    #export_data(df_lr,bank_templates["建行"],dest_path(dest_base,current_term)["建行"]/f"{"老人企业补贴(建行报盘)-"+current_term+".xls"}")
-    #export_data(df_lr,bank_templates["中行-油区"],dest_path(dest_base,current_term)["中行"]/f"{"老人企业补贴(中行-油区报盘)-"+current_term+".xlsx"}")
-    #export_data(df_lr,bank_templates["中行-南阳"],dest_path(dest_base,current_term)["中行"]/f"{"老人企业补贴(中行-南阳报盘)-"+current_term+".xlsx"}")
+    export_data(
+        conv_icbc(preprocess(df_lr,"老人企业补贴")),
+        bank_templates["工行"],
+        dest_path(dest_base,current_term)["工行"]/f"{"老人企业补贴(工行报盘)-"+current_term+".xlsx"}")
+    export_data(conv_cbc(preprocess(df_lr,"老人企业补贴")),bank_templates["建行"],dest_path(dest_base,current_term)["建行"]/f"{"老人企业补贴(建行报盘)-"+current_term+".xls"}")
+    #export_data(conv_bocyt(preprocess(df_lr,"老人企业补贴")),bank_templates["中行-油区"],dest_path(dest_base,current_term)["中行"]/f"{"老人企业补贴(中行-油区报盘)-"+current_term+".xlsx"}")
+    export_data(conv_bocny(preprocess(df_lr,"老人企业补贴")),bank_templates["中行-南阳"],dest_path(dest_base,current_term)["中行"]/f"{"老人企业补贴(中行-南阳报盘)-"+current_term+".xlsx"}")
 
-    #export_data(df_jtg,bank_templates["工行"],dest_path(dest_base,current_term)["工行"]/f"{"集体工企业补贴(工行报盘)-"+current_term+".xlsx"}")
-    #export_data(df_jtg,bank_templates["建行"],dest_path(dest_base,current_term)["建行"]/f"{"集体工企业补贴(建行报盘)-"+current_term+".xls"}")
-    #export_data(df_jtg,bank_templates["中行-油区"],dest_path(dest_base,current_term)["中行"]/f"{"集体工企业补贴(中行-油区报盘)-"+current_term+".xlsx"}")
-    #export_data(df_jtg,bank_templates["中行-南阳"],dest_path(dest_base,current_term)["中行"]/f"{"集体工企业补贴(中行-南阳报盘)-"+current_term+".xlsx"}")
+    export_data(conv_icbc(preprocess(df_jtg,"集体工企业补贴")),bank_templates["工行"],dest_path(dest_base,current_term)["工行"]/f"{"集体工企业补贴(工行报盘)-"+current_term+".xlsx"}")
+    export_data(conv_cbc(preprocess(df_jtg,"集体工企业补贴")),bank_templates["建行"],dest_path(dest_base,current_term)["建行"]/f"{"集体工企业补贴(建行报盘)-"+current_term+".xls"}")
+    export_data(conv_bocyt(preprocess(df_jtg,"集体工企业补贴")),bank_templates["中行-油区"],dest_path(dest_base,current_term)["中行"]/f"{"集体工企业补贴(中行-油区报盘)-"+current_term+".xlsx"}")
+    export_data(conv_bocny(preprocess(df_jtg,"集体工企业补贴")),bank_templates["中行-南阳"],dest_path(dest_base,current_term)["中行"]/f"{"集体工企业补贴(中行-南阳报盘)-"+current_term+".xlsx"}")
 
-    #make_change_report(df_lr, current_term, "老人", Path(dest_base)/f"{current_term[:4]+"年"}" / f"{str(int(current_term[-2:]))+"月"}")
-    #make_change_report(df_jtg, current_term, "集体工", Path(dest_base)/f"{current_term[:4]+"年"}" / f"{str(int(current_term[-2:]))+"月"}")
+    make_change_report(df_lr, current_term, "老人", Path(dest_base)/f"{current_term[:4]+"年"}" / f"{str(int(current_term[-2:]))+"月"}")
+    make_change_report(df_jtg, current_term, "集体工", Path(dest_base)/f"{current_term[:4]+"年"}" / f"{str(int(current_term[-2:]))+"月"}")
     #result = construct_data(df_lr,"老人")
-    out = Path(dest_base)/f"{current_term[:4]+"年"}" / f"{str(int(current_term[-2:]))+"月"}"/ f"{"老人企业补贴汇总-"+ current_term+r".xlsx"}"
-    summary(df_lr,summary_templates,'老人',str(out))
+    out_lr = Path(dest_base)/f"{current_term[:4]+"年"}" / f"{str(int(current_term[-2:]))+"月"}"/ f"{"老人企业补贴汇总-"+ current_term+r".xlsx"}"
+    out_jtg = Path(dest_base)/f"{current_term[:4]+"年"}" / f"{str(int(current_term[-2:]))+"月"}"/ f"{"集体工企业补贴汇总-"+ current_term+r".xlsx"}"
+    summary(df_lr,summary_templates,'老人',str(out_lr))
+    summary(df_jtg,summary_templates,'集体工',str(out_jtg))
+    
 
     
