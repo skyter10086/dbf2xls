@@ -56,7 +56,7 @@ summary_templates = {
                 "name": "银行汇总",
                 "title": {
                     "cell": "A1",
-                    "value": f"{current_term[:4]+"年"+str(int(current_term[-2:]))+"月"+"全民离退休人员企业补贴发放汇总表(单位)"}",
+                    "value": f"{current_term[:4]+"年"+str(int(current_term[-2:]))+"月"+"全民离退休人员企业补贴发放汇总表(银行)"}",
                 },
                 "grid": {
                     "arch": "K4",
@@ -873,7 +873,7 @@ def report_bank(arr, title_name, output):
     sht.page_setup.print_area = print_area
 
     # 横向打印
-    sht.page_setup.orientation = xw.constants.PageOrientation.xlLandscape
+    sht.api.PageSetup.Orientation = xw.constants.PageOrientation.xlLandscape # 'Landscape' 代表横向, 'Portrait' 代表纵向
     # sht.api.PageSetup.Orientation = xw.constants.PageOrientation.xlLandscape
     # sht.api.PageSetup.Orientation = 0  # 1为纵向，2为横向
     # 纵向打印
