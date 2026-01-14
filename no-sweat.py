@@ -11,9 +11,18 @@ import loguru
 import typer
 
 # *** 公共参数 ***
-current_term = "202510"
+current_term = "202601"
 source_base = r"D:\企业补贴\数据"
 dest_base = r"D:\企业补贴\银行报盘"
+bank_base = (
+    Path(dest_base)
+    / f"{current_term[:4]+"年"}"
+    / f"{str(int(current_term[-2:]))+"月"}"
+    / "银行汇总"
+)
+if not bank_base.exists():
+    bank_base.mkdir(parents=True, exist_ok=True)
+
 bank_templates = {
     "工行": {
         "temp_path": r"D:\企业补贴\银行报盘\工商银行报盘模板.xlsx",
@@ -64,10 +73,31 @@ summary_templates = {
             },
         ],
     },
-    #   "中人": {
-    #      "path":,
-    #     "sheet"
-    # },
+    "中人": {
+        "path": r"D:\企业补贴\银行报盘\离退休职工企业补贴汇总模板（中人）.xlsx",
+        "sheets": [
+            {
+                "name": "单位汇总",
+                "title": {
+                    "cell": "A1",
+                    "value": f"{current_term[:4]+"年"+str(int(current_term[-2:]))+"月"+"退休中人提高待遇发放汇总表(单位)"}",
+                },
+                "grid": {
+                    "arch": "B4",
+                },
+            },
+            {
+                "name": "银行汇总",
+                "title": {
+                    "cell": "A1",
+                    "value": f"{current_term[:4]+"年"+str(int(current_term[-2:]))+"月"+"退休中人提高待遇发放汇总表(银行)"}",
+                },
+                "grid": {
+                    "arch": "H4",
+                },
+            },
+        ],
+    },
     "集体工": {
         "path": r"D:\企业补贴\银行报盘\退休集体工企业补贴汇总模板.xlsx",
         "sheets": [
@@ -226,7 +256,7 @@ def preprocess(df_, benifits_type):
             df["企业补贴"] = 0
             df["提高待遇"] = pd.to_numeric(df["提高待遇"], errors="coerce").fillna(0)
             df.loc[
-                (df["发放银行"] == "工商银行（异地）") & (df["发放银行"] == "交通银行"),
+                (df["发放银行"] == "工商银行（异地）") | (df["发放银行"] == "交通银行"),
                 "发放银行",
             ] = "工商银行_跨行"
             df["账号地址"] = df["发放地点"]
@@ -246,7 +276,7 @@ def conv_icbc(df):
     df_1["业务种类"] = "00602"
     df_1["协议书号"] = ""
     df_1["账号地址"] = df_1["发放地点"]
-    df_1["跨行行号"] = df_1["银行帐号"]
+    #df_1["跨行行号"] = df_1["银行帐号"]
 
     if not df_1.query("提高待遇 > 0").empty:
         result_1 = pd.concat(
@@ -423,7 +453,7 @@ def conv_bocny(df):
                     ["姓名", "身份证", "发放银行", "x_银行帐号", "企业补贴"],
                 ].copy(),
                 df_.loc[
-                    df_["提高待遇"] > 0, ["姓名", "身份证", "发放银行", "x_银行帐号"]
+                    df_["提高待遇"] > 0, ["姓名", "身份证", "发放银行", "x_银行帐号", "提高待遇"]
                 ]
                 .copy()
                 .rename(columns={"提高待遇": "企业补贴"}),
@@ -596,7 +626,7 @@ def construct_data(dataframe: pd.DataFrame, type: str):
             df["费用扣减"] = df["其它扣款"] + df["扣款_补贴"]
             df["应发金额"] = df["企业补贴"] + df["提高待遇"]
             df["实发金额"] = df["应发金额"] - df["费用扣减"]
-            dwbm = get_dwbm(r"D:\企业补贴\银行报盘\非全民dwbm.xlsx")
+            dwbm = get_dwbm(r"D:\企业补贴\银行报盘\集体工dwbm.xlsx")
             # print(df)
             result["企业补贴（财务拨款）"] = (
                 merge_dwbm(
@@ -706,7 +736,79 @@ def construct_data(dataframe: pd.DataFrame, type: str):
             return result
 
         case "中人":
-            pass
+            df = group_by(
+                dataframe,
+                "dwbm",
+                {
+                    "x_银行帐号": "count",
+                    "应发补贴": "sum",
+                    "实发补贴": "sum",
+                    "其它扣款": "sum",
+                },
+            )
+            df.rename(
+                columns={
+                    "dwbm": "单位编码",
+                    "x_银行帐号": "实发人数",
+                    "应发补贴": "应发金额",
+                    "实发补贴": "实发金额",
+                    "其它扣款": "费用扣减",
+                },
+                inplace=True,
+            )
+
+            dwbm = get_dwbm(r"D:\企业补贴\银行报盘\中人dwbm.xlsx")
+            result["单位汇总"] = (
+                merge_dwbm(
+                    dwbm,
+                    df.filter(
+                        items=[
+                            "单位编码",
+                            "实发人数",
+                            "应发金额",
+                            "费用扣减",
+                            "实发金额",
+                        ]
+                    ),
+                    "单位编码",
+                )
+                .filter(
+                    items=[
+                        "单位编码",
+                        "性质",
+                        "单位名称",
+                        "实发人数",
+                        "应发金额",
+                        "费用扣减",
+                        "实发金额",
+                    ]
+                )
+                .values.tolist()
+            )
+            df = group_by(
+                dataframe,
+                "发放银行",
+                {
+                    "x_银行帐号": "count",
+                    "应发补贴": "sum",
+                    "实发补贴": "sum",
+                    "其它扣款": "sum",
+                },
+            )
+            df.rename(
+                columns={
+                    "实发补贴": "实发金额",
+                    "其它扣款": "费用扣减",
+                    "应发补贴": "应发金额",
+                    "x_银行帐号": "实发人数",
+                },
+                inplace=True,
+            )
+
+            result["银行汇总"] = df.filter(
+                items=["发放银行", "实发人数", "应发金额", "费用扣减", "实发金额"]
+            ).values.tolist()
+            return result
         case _:
             pass
 
@@ -816,7 +918,7 @@ def report_bank(arr, title_name, output):
     ]
 
     sht["A5"].options(transpose=True).value = list(range(1, arr_len + 1))
-    sht[f"A5:A{arr_len+4}"].api.HorizontalAlignment = -4108
+    sht[f"A5:E{arr_len+4}"].api.HorizontalAlignment = -4108
 
     sht[f"B5:E{arr_len+4}"].api.NumberFormat = "@"
     sht["B5"].value = arr
@@ -873,7 +975,9 @@ def report_bank(arr, title_name, output):
     sht.page_setup.print_area = print_area
 
     # 横向打印
-    sht.api.PageSetup.Orientation = xw.constants.PageOrientation.xlLandscape # 'Landscape' 代表横向, 'Portrait' 代表纵向
+    sht.api.PageSetup.Orientation = (
+        xw.constants.PageOrientation.xlLandscape
+    )  # 'Landscape' 代表横向, 'Portrait' 代表纵向
     # sht.api.PageSetup.Orientation = xw.constants.PageOrientation.xlLandscape
     # sht.api.PageSetup.Orientation = 0  # 1为纵向，2为横向
     # 纵向打印
@@ -897,13 +1001,14 @@ def report_bank(arr, title_name, output):
 
 # *** 根据数据生成人员变动表 ***
 def make_change_report(df, term, type, output_base):
+    # print(df)
+    # print(term)
     df["企业补贴"] = df["补贴更正"] + df["误餐补贴"]
     match type:
         case "老人":
             info = (
                 df.query(
-                    "re == 0 and 死亡登记 == "
-                    + f"{"'"+term[:4]+"-"+str(int(term[-2:]))+"'"}"
+                    "re == 0 and 死亡登记 == " + f"{"'"+term[:4]+"-"+term[-2:]+"'"}"
                 )
                 .filter(
                     items=[
@@ -917,6 +1022,7 @@ def make_change_report(df, term, type, output_base):
                 )
                 .values.tolist()
             )
+            # print(info)
 
             title_name = f"{term[:4]+"年" + str(int(term[-2:]))+"月离退休职工（老人）人员变动汇总表"}"
             file_name = (
@@ -925,14 +1031,14 @@ def make_change_report(df, term, type, output_base):
         case "集体工":
             info = (
                 df.query(
-                    "re == 0 and 死亡登记 == "
-                    + f"{"'"+term[:4]+"-"+str(int(term[-2:]))+"'"}"
+                    "re == 0 and 死亡登记 == " + f"{"'"+term[:4]+"-"+term[-2:]+"'"}"
                 )
                 .filter(
                     items=["内部编码", "单位名称", "姓名", "身份证", "swsj", "企业补贴"]
                 )
                 .values.tolist()
             )
+            # print(info)
             title_name = (
                 f"{term[:4]+"年" + str(int(term[-2:]))+"月退休集体工人员变动汇总表"}"
             )
@@ -975,7 +1081,7 @@ def report_change(arr, title_name, output):
     ]
 
     sht["A5"].options(transpose=True).value = list(range(1, arr_len + 1))
-    sht[f"A5:A{arr_len+4}"].api.HorizontalAlignment = -4108
+    sht[f"A5:G{arr_len+4}"].api.HorizontalAlignment = -4108
 
     sht[f"B5:E{arr_len+4}"].api.NumberFormat = "@"
     sht["B5"].value = arr
@@ -1052,7 +1158,9 @@ if __name__ == "__main__":
         source_path(base=source_base, term=current_term)["老人"] / "bt_ltx.dbf"
     )
 
-    # df_zr = read_dbf(source_path(base=source_base,term=current_term)["中人"] / "bt_ltx.dbf")
+    df_zr = read_dbf(
+        source_path(base=source_base, term=current_term)["中人"] / "bt_ltx.dbf"
+    )
     df_jtg = read_dbf(
         source_path(base=source_base, term=current_term)["集体工"] / "bt_ltx.dbf"
     )
@@ -1102,7 +1210,30 @@ if __name__ == "__main__":
         dest_path(dest_base, current_term)["中行"]
         / f"{"集体工企业补贴(中行-南阳报盘)-"+current_term+".xlsx"}",
     )
-
+    export_data(
+        conv_icbc(preprocess(df_zr, "中人提高待遇")),
+        bank_templates["工行"],
+        dest_path(dest_base, current_term)["工行"]
+        / f"{"中人提高待遇(工行报盘)-"+current_term+".xlsx"}",
+    )
+    export_data(
+        conv_cbc(preprocess(df_zr, "中人提高待遇")),
+        bank_templates["建行"],
+        dest_path(dest_base, current_term)["建行"]
+        / f"{"中人提高待遇(建行报盘)-"+current_term+".xls"}",
+    )
+    export_data(
+        conv_bocyt(preprocess(df_zr, "中人提高待遇")),
+        bank_templates["中行-油区"],
+        dest_path(dest_base, current_term)["中行"]
+        / f"{"中人提高待遇(中行-油区报盘)-"+current_term+".xlsx"}",
+    )
+    export_data(
+        conv_bocny(preprocess(df_zr, "中人提高待遇")),
+        bank_templates["中行-南阳"],
+        dest_path(dest_base, current_term)["中行"]
+        / f"{"中人提高待遇(中行-南阳报盘)-"+current_term+".xlsx"}",
+    )
     make_change_report(
         df_lr,
         current_term,
@@ -1132,43 +1263,42 @@ if __name__ == "__main__":
         / f"{str(int(current_term[-2:]))+"月"}"
         / f"{"集体工企业补贴汇总-"+ current_term+r".xlsx"}"
     )
-    summary(df_lr, summary_templates, "老人", str(out_lr))
-    summary(df_jtg, summary_templates, "集体工", str(out_jtg))
-    union_all = pd.concat([df_lr, df_jtg], ignore_index=True)
-    # print(union_all)
+    out_zr = (
+        Path(dest_base)
+        / f"{current_term[:4]+"年"}"
+        / f"{str(int(current_term[-2:]))+"月"}"
+        / f"{"中人提高待遇汇总-"+ current_term+r".xlsx"}"
+    )
+    summary(df_lr.query("re == 1"), summary_templates, "老人", str(out_lr))
+    summary(df_jtg.query("re == 1"), summary_templates, "集体工", str(out_jtg))
+    summary(df_zr.query("re == 1"), summary_templates, "中人", str(out_zr))
+
+    union_all = pd.concat(
+        [df_lr.query("re == 1"), df_jtg.query("re == 1"), df_zr.query("re == 1")],
+        ignore_index=True,
+    )
+    print(union_all)
     make_bank_report(
         union_all,
         current_term,
         "工商银行",
-        Path(dest_base)
-        / f"{current_term[:4]+"年"}"
-        / f"{str(int(current_term[-2:]))+"月"}"
-        / "银行汇总",
+        bank_base,
     )
     make_bank_report(
         union_all,
         current_term,
         "建设银行",
-        Path(dest_base)
-        / f"{current_term[:4]+"年"}"
-        / f"{str(int(current_term[-2:]))+"月"}"
-        / "银行汇总",
+        bank_base,
     )
     make_bank_report(
         union_all,
         current_term,
         "中国银行_油区",
-        Path(dest_base)
-        / f"{current_term[:4]+"年"}"
-        / f"{str(int(current_term[-2:]))+"月"}"
-        / "银行汇总",
+        bank_base,
     )
     make_bank_report(
         union_all,
         current_term,
         "中国银行_南阳",
-        Path(dest_base)
-        / f"{current_term[:4]+"年"}"
-        / f"{str(int(current_term[-2:]))+"月"}"
-        / "银行汇总",
+        bank_base,
     )
