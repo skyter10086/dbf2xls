@@ -11,7 +11,7 @@ import loguru
 import typer
 
 # *** 公共参数 ***
-current_term = "202601"
+current_term = "202602"
 source_base = r"D:\企业补贴\数据"
 dest_base = r"D:\企业补贴\银行报盘"
 bank_base = (
@@ -1271,12 +1271,21 @@ if __name__ == "__main__":
     )
     summary(df_lr.query("re == 1"), summary_templates, "老人", str(out_lr))
     summary(df_jtg.query("re == 1"), summary_templates, "集体工", str(out_jtg))
-    summary(df_zr.query("re == 1"), summary_templates, "中人", str(out_zr))
-
-    union_all = pd.concat(
-        [df_lr.query("re == 1"), df_jtg.query("re == 1"), df_zr.query("re == 1")],
-        ignore_index=True,
-    )
+    try:
+        summary(df_zr.query("re == 1"), summary_templates, "中人", str(out_zr))
+    except:
+        print("没有找到当月的中人数据，无法汇总中人提高待遇!\n")
+    
+    if hasattr(df_zr,'query'):
+        union_all = pd.concat(
+            [df_lr.query("re == 1"), df_jtg.query("re == 1"), df_zr.query("re == 1")],
+            ignore_index=True,
+        )
+    else:
+        union_all = pd.concat(
+            [df_lr.query("re == 1"), df_jtg.query("re == 1")],
+            ignore_index=True,
+        )
     print(union_all)
     make_bank_report(
         union_all,
