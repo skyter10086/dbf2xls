@@ -11,7 +11,7 @@ import loguru
 import typer
 
 # *** 公共参数 ***
-current_term = "202602"
+current_term = "202603"
 source_base = r"D:\企业补贴\数据"
 dest_base = r"D:\企业补贴\银行报盘"
 bank_base = (
